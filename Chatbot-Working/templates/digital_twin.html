@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STT and AI Response</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            text-align: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin-top: 20px;
+            cursor: pointer;
+        }
+
+        .error {
+            color: red;
+        }
+
+        #avatar-container {
+            width: 100%;
+            height: 400px;
+            margin-top: 30px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Speech-to-Text and AI Response</h1>
+    <p>Click the button below and start speaking.</p>
+
+    <button id="record-btn">Start Recording</button>
+    <p id="status">Press the button to start recording...</p>
+
+    <!-- Avatar container for 3D model -->
+    <div id="avatar-container"></div>
+
+    <script>
+        const recordBtn = document.getElementById("record-btn");
+        const statusText = document.getElementById("status");
+
+        let mediaRecorder;
+        let audioChunks = [];
+
+        recordBtn.addEventListener("click", () => {
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+                statusText.innerText = "Processing the audio...";
+                recordBtn.innerText = "Start Recording";
+            } else {
+                startRecording();
+                recordBtn.innerText = "Stop Recording";
+            }
+        });
+
+        function startRecording() {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.start();
+
+                    mediaRecorder.ondataavailable = event => {
+                        audioChunks.push(event.data);
+                    };
+
+                    mediaRecorder.onstop = () => {
+                        const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+                        audioChunks = [];
+                        sendAudioToServer(audioBlob);
+                    };
+
+                    statusText.innerText = "Recording... Speak now!";
+                })
+                .catch(error => {
+                    console.error("Microphone access denied:", error);
+                    statusText.innerText = "Microphone access denied!";
+                });
+        }
+
+        // Function to send audio to server for STT and AI response
+        function sendAudioToServer(audioBlob) {
+            const formData = new FormData();
+            formData.append("audio", audioBlob, "recording.wav");
+
+            fetch("/stt", {
+                method: "POST",
+                body: formData,
+            })
+                .then(response => response.json())
+                .then(data => {
+                    console.log("API Response:", data);
+                    if (data.ai_response) {
+                        playTTS(data.ai_response);  // Play AI response as speech
+                    } else if (data.error) {
+                        console.error("Error: " + data.error);
+                    }
+                    statusText.innerText = "Done!";
+                })
+                .catch(error => {
+                    console.error("Request failed:", error);
+                    statusText.innerText = "An error occurred.";
+                });
+        }
+
+        // Function to play AI response as speech using TTS
+        function playTTS(aiResponse) {
+            fetch("/tts_audio", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ text: aiResponse })
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error("TTS request failed");
+                    }
+                    return response.blob();
+                })
+                .then(audioBlob => {
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    const audio = new Audio(audioUrl);
+                    audio.play();
+                })
+                .catch(error => {
+                    console.error("TTS Error:", error);
+                });
+        }
+    </script>
+
+     <!-- Include Three.js library -->
+     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/OrbitControls.js"></script>
+     <script src="https://cdn.jsdelivr.net/npm/three@0.150.1/examples/js/loaders/GLTFLoader.js"></script>
+
+
+    <!-- Include avatar.js script -->
+    <script src="/static/script/avatar.js"></script>
+
+</body>
+
+</html>

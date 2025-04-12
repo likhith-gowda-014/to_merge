@@ -1,0 +1,9 @@
+Flask==2.3.3
+faster-whisper==0.10.0
+gTTS==2.5.1
+requests==2.31.0
+numpy==1.26.4
+torch
+torchaudio
+ffmpeg-python
+gunicorn
